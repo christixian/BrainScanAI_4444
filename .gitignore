@@ -1,0 +1,45 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Node.js
+node_modules/
+.next/
+npm-debug.log*
+
+# Project Specific
+Training/
+Testing/
+# *.pth
+*.onnx
+backend/static/uploads/
+backend/brainscan_history.db
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Redundant/Junk Root Folders
+/app/
+/static/
+
+# Redundant Backend Files
+backend/brain_cnn_4class.pth
+backend/stable_v1_main.py
+
+# Test & Debug Scripts
+backend/debug_inference.py
+backend/debug_output.txt
+backend/detailed_test.py
+backend/quick_test.py
+backend/test_all_classes.py
+backend/test_api.py
+backend/test_notumor.py
+backend/verify_backend.py
+
+# Local DB in root
+brainscan_history.db
