@@ -7,9 +7,13 @@ import MedicalInfo from "./MedicalInfo";
 
 interface PredictionResult {
     prediction_4class: string;
-    prediction_binary: "healthy" | "unhealthy";
+    prediction_binary: "healthy" | "unhealthy" | "uncertain";
     confidence_scores: Record<string, number>;
     binary_confidence: number;
+    is_uncertain?: boolean;
+    top_class?: string;
+    top_class_confidence?: number;
+    uncertain_threshold?: number;
     heatmap_base64?: string;
 }
 
@@ -24,12 +28,25 @@ type ViewMode = "original" | "heatmap";
 export default function ResultDisplay({ result, onReset, initialImageUrl }: ResultDisplayProps) {
     const [viewMode, setViewMode] = useState<ViewMode>("original");
 
-    const isHealthy = result.prediction_binary === "healthy";
+    const isUncertain = (result.is_uncertain ?? false)
+        || result.prediction_4class.toLowerCase() === "uncertain"
+        || result.prediction_binary === "uncertain";
+    const isHealthy = result.prediction_binary === "healthy" && !isUncertain;
 
     // Sort confidence scores for display
     const sortedScores = Object.entries(result.confidence_scores).sort(
         ([, a], [, b]) => b - a
     );
+    const topScoreEntry = sortedScores[0];
+    const topLabel = topScoreEntry?.[0];
+    const topScore = topScoreEntry?.[1] ?? 0;
+    const highlightedLabel = isUncertain ? topLabel : result.prediction_4class;
+    const formatLabel = (label?: string) => {
+        if (!label) return "No prediction";
+        return label === "notumor" ? "No Tumor" : label;
+    };
+    const threshold = result.uncertain_threshold ?? 0.5;
+    const topClassConfidence = result.top_class_confidence ?? topScore;
 
     const handleConvertToHeatmap = () => {
         setViewMode("heatmap");
@@ -41,7 +58,9 @@ export default function ResultDisplay({ result, onReset, initialImageUrl }: Resu
             <div
                 className={clsx(
                     "relative overflow-hidden rounded-2xl p-8 text-center border shadow-2xl transition-all",
-                    isHealthy
+                    isUncertain
+                        ? "bg-amber-950/40 border-amber-500/30 shadow-amber-900/20"
+                        : isHealthy
                         ? "bg-emerald-950/30 border-emerald-500/30 shadow-emerald-900/20"
                         : "bg-rose-950/30 border-rose-500/30 shadow-rose-900/20"
                 )}
@@ -49,7 +68,9 @@ export default function ResultDisplay({ result, onReset, initialImageUrl }: Resu
                 <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
 
                 <div className="relative z-10 flex flex-col items-center gap-4">
-                    {isHealthy ? (
+                    {isUncertain ? (
+                        <AlertTriangle className="w-16 h-16 text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.4)]" />
+                    ) : isHealthy ? (
                         <CheckCircle className="w-16 h-16 text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]" />
                     ) : (
                         <AlertTriangle className="w-16 h-16 text-rose-400 drop-shadow-[0_0_15px_rgba(251,113,133,0.5)]" />
@@ -57,19 +78,31 @@ export default function ResultDisplay({ result, onReset, initialImageUrl }: Resu
 
                     <div>
                         <h2 className="text-3xl font-bold tracking-tight text-white mb-1 capitalize">
-                            {result.prediction_4class === "notumor" ? "No Tumor" : result.prediction_4class}
+                            {isUncertain
+                                ? "Uncertain Result"
+                                : result.prediction_4class === "notumor"
+                                    ? "No Tumor"
+                                    : result.prediction_4class}
                         </h2>
                         <p className={clsx("text-lg font-medium uppercase tracking-widest opacity-90",
-                            isHealthy ? "text-emerald-300" : "text-rose-300"
+                            isUncertain
+                                ? "text-amber-300"
+                                : isHealthy
+                                    ? "text-emerald-300"
+                                    : "text-rose-300"
                         )}>
-                            {isHealthy ? "No Tumor Detected" : "Tumor Detected"}
+                            {isUncertain
+                                ? `Highest match: ${formatLabel(result.top_class ?? topLabel)} (${(topClassConfidence * 100).toFixed(1)}%)`
+                                : (isHealthy ? "No Tumor Detected" : "Tumor Detected")}
                         </p>
                     </div>
 
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/20 backdrop-blur-md border border-white/10">
                         <Activity className="w-4 h-4 text-slate-400" />
                         <span className="text-sm font-mono text-slate-300">
-                            Tumor Likelihood: {(isHealthy ? (1 - result.binary_confidence) * 100 : result.binary_confidence * 100).toFixed(1)}%
+                            {isUncertain
+                                ? `Confidence below ${(threshold * 100).toFixed(0)}% (top ${(topClassConfidence * 100).toFixed(1)}%)`
+                                : `Tumor Likelihood: ${(isHealthy ? (1 - result.binary_confidence) * 100 : result.binary_confidence * 100).toFixed(1)}%`}
                         </span>
                     </div>
                 </div>
@@ -150,7 +183,7 @@ export default function ResultDisplay({ result, onReset, initialImageUrl }: Resu
                                 <div key={label} className="group">
                                     <div className="flex justify-between text-sm mb-1">
                                         <span className="capitalize text-slate-200 font-medium">
-                                            {label === "notumor" ? "No Tumor" : label}
+                                            {formatLabel(label)}
                                         </span>
                                         <span className="font-mono text-slate-400">{(score * 100).toFixed(1)}%</span>
                                     </div>
@@ -158,8 +191,12 @@ export default function ResultDisplay({ result, onReset, initialImageUrl }: Resu
                                         <div
                                             className={clsx(
                                                 "h-full rounded-full transition-all duration-1000 ease-out",
-                                                label === result.prediction_4class
-                                                    ? (isHealthy ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]")
+                                                label === highlightedLabel
+                                                    ? (isUncertain
+                                                        ? "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]"
+                                                        : isHealthy
+                                                            ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                                                            : "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]")
                                                     : "bg-slate-600 opacity-50"
                                             )}
                                             style={{ width: `${score * 100}%` }}
