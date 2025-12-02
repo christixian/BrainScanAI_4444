@@ -14,6 +14,22 @@ from database import init_db, add_prediction, get_history, clear_history
 from gradcam import GradCAM, generate_heatmap_overlay, get_base64_overlay
 
 # Define Model Architecture (Must match training)
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+from PIL import Image
+import io
+import numpy as np
+import os
+import uuid
+from datetime import datetime
+from database import init_db, add_prediction, get_history, clear_history
+from gradcam import GradCAM, generate_heatmap_overlay, get_base64_overlay
+
+# Define Model Architecture (Must match training)
 class BrainCNN(nn.Module):
     def __init__(self, num_classes=4):
         super(BrainCNN, self).__init__()
@@ -44,12 +60,11 @@ class BrainCNN(nn.Module):
         )
         
         self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Linear(256, 128),
+            nn.Linear(256 * 8 * 8, 512),
             nn.ReLU(inplace=True),
             nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
+            nn.Linear(512, num_classes)
         )
 
     def forward(self, x):
