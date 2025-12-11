@@ -91,6 +91,13 @@ const MEDICAL_DATA: Record<string, {
         symptoms: [],
         causes: [],
         treatment: []
+    },
+    
+    uncertain: {
+        description: "Model is not confident in the result. Please contact a medical professional.",
+        symptoms: [],
+        causes: [],
+        treatment: []
     }
 };
 
@@ -112,6 +119,23 @@ export default function MedicalInfo({ prediction }: MedicalInfoProps) {
             </div>
         );
     }
+
+    if (prediction.toLowerCase() === "uncertain") {
+        return (
+            <div className="mt-8 p-6 rounded-xl bg-emerald-500/10 border border-emerald-500/20 animate-fade-in">
+                <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-lg bg-emerald-500/20 text-emerald-400">
+                        <Activity className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-white mb-2">Uncertain</h3>
+                        <p className="text-slate-300 leading-relaxed">{data.description}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
 
     return (
         <div className="mt-12 space-y-8 animate-fade-in">

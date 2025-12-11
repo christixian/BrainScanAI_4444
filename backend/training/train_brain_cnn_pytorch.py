@@ -6,6 +6,8 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
 from sklearn.metrics import classification_report, confusion_matrix
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 IMG_SIZE=(128, 128)
 BATCH_SIZE= 32
@@ -24,20 +26,18 @@ print("Using device:", device)
 
 """Transform the images"""
 train_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
+    transforms.Grayscale(num_output_channels=1),
     transforms.Resize(IMG_SIZE),
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(15),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                         std=[0.5, 0.5, 0.5]),
+    transforms.Normalize(mean=[0.5], std=[0.5])
 ])
 test_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
+    transforms.Grayscale(num_output_channels=1),
     transforms.Resize(IMG_SIZE),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                         std=[0.5, 0.5, 0.5]),
+    transforms.Normalize(mean=[0.5], std=[0.5])
 ])
 """A full training dataset we will split into (train/val)"""
 full_train_dataset = datasets.ImageFolder(root=TRAIN_DIR, transform=train_transform)
@@ -55,14 +55,36 @@ val_loader   = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False)
 test_dataset = datasets.ImageFolder(root=TEST_DIR, transform=test_transform)
 test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
+#plot confusion matrix, with trues=validation labels, preds=predictions, title=plot title
+def plot_cm(trues, preds, title, classes):
+    cm=100*confusion_matrix(trues, preds, normalize='true')
+    plt.figure(figsize=(4,5))
+    ax=sns.heatmap(
+        cm,
+        annot=True,
+        fmt='.2f',
+        cmap='Blues',
+        xticklabels=classes,
+        yticklabels=classes
+    )
+    for text in ax.texts:
+        text.set_text(text.get_text() + '%')
+    plt.title(title, fontsize=16)
+    plt.ylabel('True Class', fontsize=14)
+    plt.xlabel('Predicted Class', fontsize=14)
+    plt.tight_layout()
+    os.makedirs("conf_mats", exist_ok=True)
+    plt.savefig(f'conf_mats/{title.replace(" ", "_")}.png', dpi=300)
 
 """THE MODEL - IMPROVED"""
 class BrainCNN(nn.Module):
+
+
     def __init__(self, num_classes: int):
         super(BrainCNN, self).__init__()
         self.features = nn.Sequential(
             # Block 1
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2),   # 128 -> 64
@@ -101,6 +123,7 @@ class BrainCNN(nn.Module):
         
 model = BrainCNN(num_classes=num_classes).to(device)
 print(model)
+MODEL_PATH = "../models/brain_cnn_4class.pth" # Moved to models folder
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3) # Increased initial LR slightly
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3)
@@ -134,6 +157,8 @@ def evaluate(model, loader, criterion, device):
     running_loss = 0.0
     correct = 0
     total = 0
+    preds_full=[]
+    labels_full=[]
     with torch.no_grad():
         for images, labels in loader:
             images = images.to(device)
@@ -143,35 +168,39 @@ def evaluate(model, loader, criterion, device):
 
             running_loss += loss.item() * images.size(0)
             _, preds = torch.max(outputs, 1)
+            preds_full.append(preds.cpu())
+            labels_full.append(labels.cpu())
             correct += (preds == labels).sum().item()
             total += labels.size(0)
     epoch_loss = running_loss / total
     epoch_acc = correct / total
-    return epoch_loss, epoch_acc
+    preds_np=torch.cat(preds_full).numpy()
+    labels_np=torch.cat(labels_full).numpy()
+    return epoch_loss, epoch_acc, preds_np, labels_np
 
 best_val_acc = 0.0
 
 for epoch in range(EPOCHS):
     train_loss, train_acc = train_one_epoch(model, train_loader, optimizer, criterion, device)
-    val_loss, val_acc     = evaluate(model, val_loader, criterion, device)
+    val_loss, val_acc, preds_np, labels_np     = evaluate(model, val_loader, criterion, device)
     
     scheduler.step(val_loss)
     
     print(f"Epoch {epoch+1}/{EPOCHS} "
           f"- Train loss: {train_loss:.4f}, acc: {train_acc:.4f} "
           f"- Val loss: {val_loss:.4f}, acc: {val_acc:.4f}")
-    
+    plot_cm(labels_np, preds_np, f"Val Confusion Matrix Epoch {epoch+1}", class_names)
     # Save best model
     if val_acc > best_val_acc:
         best_val_acc = val_acc
-        torch.save(model.state_dict(), "brain_cnn_4class.pth")
+        torch.save(model.state_dict(), MODEL_PATH)
         print(f"Model saved with Val Acc: {val_acc:.4f}")
 
 print(f"Best Validation Accuracy: {best_val_acc:.4f}")
 
 """4 class test evaluation """
 # Load best model
-model.load_state_dict(torch.load("brain_cnn_4class.pth", map_location=device))
+model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
 model.eval()
 all_outputs = []
 all_labels = []
@@ -193,8 +222,7 @@ y_true = all_labels.numpy()
 print("\n4-class Classification Report:")
 print(classification_report(y_true, y_pred, target_names=class_names))
 
-print("4-class Confusion Matrix:")
-print(confusion_matrix(y_true, y_pred))
+plot_cm(y_true, y_pred, "Test Confusion Matrix", class_names)
 
 """Now map to Healthy vs Unhealthy Brain"""
 idx_notumor = class_names.index("notumor")  #index of healthy class
@@ -206,6 +234,5 @@ binary_names = ["healthy", "unhealthy"]
 
 print("\nBINARY Classification Report (healthy vs unhealthy):")
 print(classification_report(y_true_binary, y_pred_binary, target_names=binary_names))
+plot_cm(y_true_binary, y_pred_binary, "Binary Test Confusion Matrix", binary_names)
 
-print("BINARY Confusion Matrix (rows=true, cols=pred):")
-print(confusion_matrix(y_true_binary, y_pred_binary))
