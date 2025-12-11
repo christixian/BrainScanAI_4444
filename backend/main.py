@@ -19,7 +19,7 @@ class BrainCNN(nn.Module):
         super(BrainCNN, self).__init__()
         self.features = nn.Sequential(
             # Block 1
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
@@ -105,9 +105,10 @@ grad_cam = GradCAM(model, target_layer)
 
 # Preprocessing
 preprocess = transforms.Compose([
+    transforms.Grayscale(num_output_channels=1),
     transforms.Resize((128, 128)), # Match training size
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]), # Match training normalization
+    transforms.Normalize(mean=[0.5], std=[0.5]), # Match training normalization
 ])
 
 class_names = ['glioma', 'meningioma', 'notumor', 'pituitary']

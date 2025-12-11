@@ -11,7 +11,7 @@ import seaborn as sns
 
 IMG_SIZE=(128, 128)
 BATCH_SIZE= 32
-EPOCHS= 2 # Increased epochs
+EPOCHS= 20 # Increased epochs
 TRAIN_DIR="Training"
 TEST_DIR="Testing"
 
@@ -26,20 +26,18 @@ print("Using device:", device)
 
 """Transform the images"""
 train_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
+    transforms.Grayscale(num_output_channels=1),
     transforms.Resize(IMG_SIZE),
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(15),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                         std=[0.5, 0.5, 0.5]),
+    transforms.Normalize(mean=[0.5], std=[0.5])
 ])
 test_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
+    transforms.Grayscale(num_output_channels=1),
     transforms.Resize(IMG_SIZE),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                         std=[0.5, 0.5, 0.5]),
+    transforms.Normalize(mean=[0.5], std=[0.5])
 ])
 """A full training dataset we will split into (train/val)"""
 full_train_dataset = datasets.ImageFolder(root=TRAIN_DIR, transform=train_transform)
@@ -59,9 +57,6 @@ test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 #plot confusion matrix, with trues=validation labels, preds=predictions, title=plot title
 def plot_cm(trues, preds, title, classes):
-    print("Unique labels in y_true:", np.unique(trues))
-    print("Unique predictions:", np.unique(preds))
-    print("classes mapping:", classes)
     cm=100*confusion_matrix(trues, preds, normalize='true')
     plt.figure(figsize=(4,5))
     ax=sns.heatmap(
@@ -89,7 +84,7 @@ class BrainCNN(nn.Module):
         super(BrainCNN, self).__init__()
         self.features = nn.Sequential(
             # Block 1
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2),   # 128 -> 64
