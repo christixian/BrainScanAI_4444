@@ -55,26 +55,6 @@ val_loader   = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False)
 test_dataset = datasets.ImageFolder(root=TEST_DIR, transform=test_transform)
 test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-#plot confusion matrix, with trues=validation labels, preds=predictions, title=plot title
-def plot_cm(trues, preds, title, classes):
-    cm=100*confusion_matrix(trues, preds, normalize='true')
-    plt.figure(figsize=(4,5))
-    ax=sns.heatmap(
-        cm,
-        annot=True,
-        fmt='.2f',
-        cmap='Blues',
-        xticklabels=classes,
-        yticklabels=classes
-    )
-    for text in ax.texts:
-        text.set_text(text.get_text() + '%')
-    plt.title(title, fontsize=16)
-    plt.ylabel('True Class', fontsize=14)
-    plt.xlabel('Predicted Class', fontsize=14)
-    plt.tight_layout()
-    os.makedirs("conf_mats", exist_ok=True)
-    plt.savefig(f'conf_mats/{title.replace(" ", "_")}.png', dpi=300)
 
 """THE MODEL - IMPROVED"""
 class BrainCNN(nn.Module):
@@ -127,6 +107,28 @@ MODEL_PATH = "../models/brain_cnn_4class.pth" # Moved to models folder
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-3) # Increased initial LR slightly
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3)
+
+#plot confusion matrix, with trues=validation labels, preds=predictions, title=plot title
+def plot_cm(trues, preds, title, classes):
+    cm=100*confusion_matrix(trues, preds, normalize='true')
+    plt.figure(figsize=(4,5))
+    ax=sns.heatmap(
+        cm,
+        annot=True,
+        fmt='.2f',
+        cmap='Blues',
+        xticklabels=classes,
+        yticklabels=classes
+    )
+    for text in ax.texts:
+        text.set_text(text.get_text() + '%')
+    plt.title(title, fontsize=16)
+    plt.ylabel('True Class', fontsize=14)
+    plt.xlabel('Predicted Class', fontsize=14)
+    plt.tight_layout()
+    os.makedirs("conf_mats", exist_ok=True)
+    plt.savefig(f'conf_mats/{title.replace(" ", "_")}.png', dpi=300)
+
 
 """Training and Validation loop"""
 def train_one_epoch(model, loader, optimizer, criterion, device):
