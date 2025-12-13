@@ -112,8 +112,8 @@ preprocess = transforms.Compose([
 ])
 
 class_names = ['glioma', 'meningioma', 'notumor', 'pituitary']
-UNCERTAIN_THRESHOLD_HEALTHY = 0.5
-UNCERTAIN_THRESHOLD_UNHEALTHY = 0.4
+UNCERTAIN_THRESHOLD_HEALTHY = 0.55
+UNCERTAIN_THRESHOLD_UNHEALTHY = 0.5
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
