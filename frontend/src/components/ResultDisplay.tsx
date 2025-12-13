@@ -10,7 +10,6 @@ interface PredictionResult {
     prediction_binary: "healthy" | "unhealthy" | "uncertain";
     confidence_scores: Record<string, number>;
     binary_confidence: number;
-    is_uncertain?: boolean;
     top_class?: string;
     top_class_confidence?: number;
     uncertain_threshold?: number;
@@ -28,9 +27,7 @@ type ViewMode = "original" | "heatmap";
 export default function ResultDisplay({ result, onReset, initialImageUrl }: ResultDisplayProps) {
     const [viewMode, setViewMode] = useState<ViewMode>("original");
 
-    const isUncertain = (result.is_uncertain ?? false)
-        || result.prediction_4class.toLowerCase() === "uncertain"
-        || result.prediction_binary === "uncertain";
+    const isUncertain = result.prediction_4class.toLowerCase() === "uncertain"
     const isHealthy = result.prediction_binary === "healthy" && !isUncertain;
 
     // Sort confidence scores for display
