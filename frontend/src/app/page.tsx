@@ -10,6 +10,9 @@ interface PredictionResult {
   prediction_binary: "healthy" | "unhealthy";
   confidence_scores: Record<string, number>;
   binary_confidence: number;
+  top_class?: string;
+  top_class_confidence?: number;
+  uncertain_threshold?: number;
   heatmap_base64?: string;
   image_url?: string;
 }

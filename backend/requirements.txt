@@ -7,3 +7,5 @@ numpy
 scikit-learn
 python-multipart
 httpx
+matplotlib
+seaborn

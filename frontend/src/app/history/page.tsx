@@ -84,6 +84,7 @@ export default function HistoryPage() {
                         history.map((item) => {
                             const { date, time } = formatDate(item.timestamp);
                             const isHealthy = item.prediction_binary === "healthy";
+                            const isUncertain = item.prediction_4class.toLowerCase() === "uncertain"
 
                             return (
                                 <Link
@@ -113,15 +114,20 @@ export default function HistoryPage() {
                                                 <div className="flex items-center gap-3 mb-2">
                                                     <span className={clsx(
                                                         "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider",
+                                                        isUncertain
+                                                            ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+                                                            :
                                                         isHealthy
                                                             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                                             : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
                                                     )}>
-                                                        {item.prediction_4class}
+                                                        {isHealthy? "No Tumor" : item.prediction_4class}
                                                     </span>
+                                                    {!isUncertain ? (
                                                     <span className="text-xs font-mono text-slate-500">
-                                                        Conf: {(item.binary_confidence * 100).toFixed(1)}%
+                                                        Conf of {isHealthy? "no tumor" : "tumor"}: {(item.binary_confidence * 100).toFixed(1)}%
                                                     </span>
+                                                    ) : null}
                                                 </div>
 
                                                 <div className="flex items-center gap-4 text-sm text-slate-400">

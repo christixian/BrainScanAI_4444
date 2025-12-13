@@ -19,7 +19,7 @@ class BrainCNN(nn.Module):
         super(BrainCNN, self).__init__()
         self.features = nn.Sequential(
             # Block 1
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),
@@ -105,12 +105,15 @@ grad_cam = GradCAM(model, target_layer)
 
 # Preprocessing
 preprocess = transforms.Compose([
+    transforms.Grayscale(num_output_channels=1),
     transforms.Resize((128, 128)), # Match training size
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]), # Match training normalization
+    transforms.Normalize(mean=[0.5], std=[0.5]), # Match training normalization
 ])
 
 class_names = ['glioma', 'meningioma', 'notumor', 'pituitary']
+UNCERTAIN_THRESHOLD_HEALTHY = 0.55
+UNCERTAIN_THRESHOLD_UNHEALTHY = 0.5
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
@@ -143,19 +146,25 @@ async def predict(file: UploadFile = File(...)):
     with torch.no_grad():
         output = model(tensor)
         probabilities = torch.softmax(output, dim=1).cpu().numpy()[0]
-        predicted_index = np.argmax(probabilities)
+        predicted_index = int(np.argmax(probabilities))
         predicted_class = class_names[predicted_index]
+        top_confidence = float(probabilities[predicted_index])
 
-    # 4. Binary mapping
-    is_healthy = (predicted_class == "notumor")
-    binary_label = "healthy" if is_healthy else "unhealthy"
-    
-    if is_healthy:
-        binary_conf = probabilities[predicted_index]
+    # 4. Binary mapping based on aggregated tumor vs healthy probability
+    healthy_probability = float(probabilities[class_names.index("notumor")])
+    tumor_probability = float(sum(probabilities[i] for i, name in enumerate(class_names) if name != "notumor"))
+
+    if tumor_probability >= healthy_probability:
+        binary_label = "unhealthy"
+        binary_conf = tumor_probability
     else:
-        # Sum of all tumor probabilities
-        tumor_probs = sum(probabilities[i] for i, name in enumerate(class_names) if name != "notumor")
-        binary_conf = tumor_probs
+        binary_label = "healthy"
+        binary_conf = healthy_probability
+
+    # Flag low-confidence predictions explicitly
+    unc_threshold_use = UNCERTAIN_THRESHOLD_HEALTHY if binary_label=="healthy" else UNCERTAIN_THRESHOLD_UNHEALTHY
+    is_uncertain = top_confidence < unc_threshold_use
+    prediction_4class = "uncertain" if is_uncertain else predicted_class
 
     # 5. Generate Heatmap (Grad-CAM)
     # Need gradients, so ensure requires_grad is handled by GradCAM or we might need to enable it if it was disabled globally?
@@ -174,9 +183,9 @@ async def predict(file: UploadFile = File(...)):
         class_names[i]: float(probabilities[i])
         for i in range(len(class_names))
     }
-    
+
     add_prediction(
-        prediction_4class=predicted_class,
+        prediction_4class=prediction_4class,
         prediction_binary=binary_label,
         confidence_scores=confidence_scores,
         binary_confidence=float(binary_conf),
@@ -184,11 +193,15 @@ async def predict(file: UploadFile = File(...)):
         image_url=image_url
     )
 
+
     return {
-        "prediction_4class": predicted_class,
+        "prediction_4class": prediction_4class,
         "prediction_binary": binary_label,
         "confidence_scores": confidence_scores,
         "binary_confidence": float(binary_conf),
+        "top_class": predicted_class,
+        "top_class_confidence": top_confidence,
+        "uncertain_threshold": unc_threshold_use,
         "heatmap_base64": heatmap_base64,
         "image_url": image_url
     }
