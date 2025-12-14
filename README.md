@@ -119,6 +119,7 @@ Follow these steps to run the project locally on your machine.
 ### 1. Prerequisites
 *   **Python 3.8+** installed.
 *   **Node.js 18+** installed.
+*   **Matplotlib** installed.
 
 ### 2. Backend Setup
 The backend runs the AI model.
